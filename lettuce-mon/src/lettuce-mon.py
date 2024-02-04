@@ -29,7 +29,7 @@ class TempHumiditySensor:
         self._sensor_name = name
         self._sensor_obj = sensor_obj
         # Check if base topic has a trailing '/'
-        if base_mqtt_publish_topic[-1] != "/":
+        if base_mqtt_publish_topic[-1] != "/": 
             self._base_mqtt_publish_topic = base_mqtt_publish_topic + "/"
         else:
             self._base_mqtt_publish_topic = base_mqtt_publish_topic
