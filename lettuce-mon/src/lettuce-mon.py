@@ -2,20 +2,18 @@ print("lettuce!")
 
 import time
 import argparse
-from board import SCL, SDA, D4
+from board import SCL, SDA
 import busio
-import digitalio
 
 import paho.mqtt.client as mqtt
 
-import ssd1305_display
 import sensors
 
 '''
 Priority Development Order
 1. Sensors: SHT31, HTS221 [done]
 2. MQTT Publish [done]
-3. Display [done]
+3. Remove Display 
 4. Thermocouple for water temperature
 '''
 
@@ -86,8 +84,6 @@ class TempHumiditySensor:
 class LettuceMonitor:
 
     # Defaults
-    _oled_reset_pin = digitalio.DigitalInOut(D4)
-    _display_i2c_addr = 0
 
     # Private Class Variables
     _sensors = list()
@@ -99,9 +95,6 @@ class LettuceMonitor:
         
         # I2C Bus
         i2c = busio.I2C(SCL, SDA)
-
-        # Initialize Display
-        self._display = ssd1305_display.Display(i2c, self._display_i2c_addr, self._oled_reset_pin)
 
         # Create Sensor Objects
         mqtt_base_topic = "lettuce_box/"
@@ -142,20 +135,6 @@ class LettuceMonitor:
                                           sensor.get_mqtt_measurement_string(), 
                                           0, 
                                           True)
-        return (all_read_okay, all_ret_msg)
-    
-    '''
-    Display sensor data
-    Limited to first three sensors
-    '''
-    def display_sensor_data(self) -> (bool, str):
-        all_read_okay = True
-        all_ret_msg = ""
-        self._display.clear_screen()
-        for index in range(3):
-            sensor = self._sensors[index]
-            sensor_str = f"{sensor.get_name(8)}     {sensor.get_last_temperature():0.1f}F    {sensor.get_last_humidity():0.1f}%"
-            self._display.print_line(index, sensor_str)
         return (all_read_okay, all_ret_msg)
     
     # The callback for when the client receives a CONNACK response from the server.
@@ -201,12 +180,6 @@ if __name__ == '__main__':
         # MQTT Publish
         (publish_sensor_okay, err_msg) = lettuce.publish_sensor_data()
         if not publish_sensor_okay:
-            print(err_msg)
-            continue
-
-        # Display
-        (display_sensor_okay, err_msg) = lettuce.display_sensor_data()
-        if not display_sensor_okay:
             print(err_msg)
             continue
 
