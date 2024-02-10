@@ -13,8 +13,8 @@ import sensors
 Priority Development Order
 1. Sensors: SHT31, HTS221 [done]
 2. MQTT Publish [done]
-3. Remove Display 
-4. Thermocouple for water temperature
+3. Remove Display [done]
+4. Thermocouple for water temperature. See https://learn.adafruit.com/thermistor/using-a-thermistor
 '''
 
 class TempHumiditySensor:
