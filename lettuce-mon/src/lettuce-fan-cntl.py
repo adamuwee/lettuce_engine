@@ -6,6 +6,9 @@ import datetime
 import RPi.GPIO as GPIO
 from threading import Lock
 
+import logging
+import paho.mqtt.client as mqtt
+
 class TripleFanController:
 
 # Pi Pin Config
@@ -97,3 +100,72 @@ class TripleFanController:
     def _callback_fan_tach(self, tach_channel):
         with self._tach_lock:
             self._tach_counts[tach_channel] += 1
+
+class MqttClient:
+# MQTT Client
+flag_connected = False
+def on_connect(client, userdata, flags, rc):
+	global flag_connected
+	flag_connected = 1
+
+def on_disconnect(client, userdata, rc):
+	global flag_connected
+	flag_connected = 0
+
+client = mqtt.Client()
+
+client.on_connect = on_connect
+client.on_disconnect = on_disconnect
+try:
+	client.connect(openhab_host, mqtt_broker_port)
+	client.loop_start()
+except:
+	print('MQTT client connect failure')
+	flag_connected = False
+
+'''
+Main Loop for Fan Controller
+'''
+def main():
+
+    # Service Config
+    loop_period_seconds = 10
+    openhab_host = "debian-openhab"
+    mqtt_broker_port = 1883
+
+    # Configure Logger
+    logging.basicConfig(level=logging.INFO, format="%(asctime)s:%(levelname)s:%(message)s")
+    logger = logging.getLogger(__name__)
+    # Debug File Log
+    file = logging.FileHandler("debug_lettuce_fan_controller.log")
+    file.setLevel(logging.INFO)
+    fileformat = logging.Formatter("%(asctime)s:%(levelname)s:%(message)s")
+    file.setFormatter(fileformat)
+    logger.addHandler(file)
+    # Critical File Log
+    cric_file = logging.FileHandler("critical_lettuce_fan_controller.log")
+    cric_file.setLevel(logging.CRITICAL)
+    cric_file.setFormatter(fileformat)
+    logger.addHandler(cric_file)
+
+    # Create Fan Controller object
+    fan_controller = TripleFanController()
+
+    # Initialize MQTT Client
+    mqtt_client = mqtt.Client()
+
+
+    # Infinite loop of reporting temperature and setting fan speed based on temperature
+    while True:
+        # Check MQTT Client Connection
+        if flag_connected == False:
+            client.loop_stop()
+            client.connect(openhab_host, mqtt_broker_port)
+            client.loop_start()
+            logger.info(f'MQTT Client Connected: {client}')
+
+        monitor_temp_update_fans()
+        time.sleep(loop_period_seconds)
+
+if __name__ == "__main__":
+    main()
