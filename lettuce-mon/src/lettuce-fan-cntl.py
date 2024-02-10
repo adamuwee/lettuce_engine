@@ -101,27 +101,50 @@ class TripleFanController:
         with self._tach_lock:
             self._tach_counts[tach_channel] += 1
 
+'''
+Represents a MQTT client that connects to the OpenHAB MQTT broker
+'''
 class MqttClient:
-# MQTT Client
-flag_connected = False
-def on_connect(client, userdata, flags, rc):
-	global flag_connected
-	flag_connected = 1
 
-def on_disconnect(client, userdata, rc):
-	global flag_connected
-	flag_connected = 0
+    '''
+    Init mqtt client
+    '''
+    def __init__(self,
+                    openhab_host : str = "debian-openhab",
+                    mqtt_broker_port : int = 1883):
+        self._openhab_host = openhab_host
+        self._mqtt_broker_port = mqtt_broker_port
+        self._flag_connected = False
+        self._client = mqtt.Client()
+        self._client.on_connect = self.on_connect
+        self._client.on_disconnect = self.on_disconnect
+        self._client.connect(self.openhab_host, self.mqtt_broker_port)
 
-client = mqtt.Client()
+    '''
+    Attempt to connect to the broker
+    '''
+    def try_connect(self) -> bool:     
+        try:
+            self._client.connect(self._openhab_host, self._mqtt_broker_port)
+            self._client.loop_start()
+        except:
+            print('MQTT client connect failure')
+            self._flag_connected = False
+        if self._flag_connected == 1:
+            self._client.loop_start()
+        return (self._flag_connected == 1)
 
-client.on_connect = on_connect
-client.on_disconnect = on_disconnect
-try:
-	client.connect(openhab_host, mqtt_broker_port)
-	client.loop_start()
-except:
-	print('MQTT client connect failure')
-	flag_connected = False
+    # MQTT Client
+    def on_connect(self, client, userdata, flags, rc):
+        self._flag_connected = 1
+
+    def on_disconnect(self, client, userdata, rc):
+        self._flag_connected = 0
+
+    def is_connected(self) -> bool:
+        return self._flag_connected
+
+
 
 '''
 Main Loop for Fan Controller
