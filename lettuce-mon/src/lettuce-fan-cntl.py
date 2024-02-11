@@ -111,14 +111,17 @@ class MqttClient:
     '''
     def __init__(self,
                     openhab_host : str = "debian-openhab",
-                    mqtt_broker_port : int = 1883):
+                    mqtt_broker_port : int = 1883,
+                    logger : logging.Logger = None):
         self._openhab_host = openhab_host
         self._mqtt_broker_port = mqtt_broker_port
         self._flag_connected = False
         self._client = mqtt.Client()
-        self._client.on_connect = self.on_connect
-        self._client.on_disconnect = self.on_disconnect
+        self._client.on_connect = self._on_connect
+        self._client.on_disconnect = self._on_disconnect
         self._client.connect(self.openhab_host, self.mqtt_broker_port)
+        self._logger = logger
+        self._log("MQTT Client Object Created.")
 
     '''
     Attempt to connect to the broker
@@ -128,22 +131,41 @@ class MqttClient:
             self._client.connect(self._openhab_host, self._mqtt_broker_port)
             self._client.loop_start()
         except:
-            print('MQTT client connect failure')
+            self._log('MQTT client connect failure')
             self._flag_connected = False
         if self._flag_connected == 1:
             self._client.loop_start()
+        self._log(f'Connected = {(self._flag_connected == 1)}')
         return (self._flag_connected == 1)
 
     # MQTT Client
-    def on_connect(self, client, userdata, flags, rc):
-        self._flag_connected = 1
 
-    def on_disconnect(self, client, userdata, rc):
-        self._flag_connected = 0
 
     def is_connected(self) -> bool:
         return self._flag_connected
 
+    def try_publish(self, topic: str, payload : str) -> tuple:
+        publish_ok = False
+        err_msg = "Unknown publish error"
+        
+        return (publish_ok, err_msg)
+    '''
+    Connect callback
+    '''
+    def _on_connect(self, client, userdata, flags, rc):
+        self._flag_connected = 1
+        self._log("Client connected.")
+
+    '''
+    Disconnect callback
+    '''
+    def _on_disconnect(self, client, userdata, rc):
+        self._flag_connected = 0
+        self._log("Client disconnected.")
+    
+    def _log(self, log_msg : str):
+        if (self._logger != None):
+            self._logger.info(f'MQTT Client: {log_msg}')
 
 
 '''
@@ -176,7 +198,6 @@ def main():
 
     # Initialize MQTT Client
     mqtt_client = mqtt.Client()
-
 
     # Infinite loop of reporting temperature and setting fan speed based on temperature
     while True:
