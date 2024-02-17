@@ -202,6 +202,7 @@ class MqttClient:
     Subscribe to a topic
     '''
     def subscribe(self, topic : str):
+        self._log(f"Subscribing to: {topic}")
         self._client.subscribe(topic)
 
     '''
@@ -291,10 +292,6 @@ def main():
 
     # Initialize MQTT Client
     mqtt_client = MqttClient()
-    mqtt_client.try_connect()
-
-    # Subscribe to fan set point
-    mqtt_client.subscribe(fan_pwm_set_point_topic)
 
     # Infinite loop of reporting temperature and setting fan speed based on temperature
     while True:
