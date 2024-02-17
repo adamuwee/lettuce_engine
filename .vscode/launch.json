@@ -5,7 +5,15 @@
     "version": "0.2.0",
     "configurations": [
         {
-            "name": "Python: Current File",
+            "name": "lettuce-fan",
+            "type": "python",
+            "request": "launch",
+            "program": "lettuce-mon/src/lettuce-fan-cntl.py",
+            "console": "integratedTerminal",
+            "justMyCode": true
+        },
+        {
+            "name": "lettuce-mon",
             "type": "python",
             "request": "launch",
             "program": "lettuce-mon/src/lettuce-mon.py",

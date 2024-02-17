@@ -7,7 +7,7 @@ import json
 
 class SingleTempHumidityMeasurement:
         
-    timestamp_isostr = None
+    timestamp_isostr = None 
     temperature = None
     humidity = None
 
