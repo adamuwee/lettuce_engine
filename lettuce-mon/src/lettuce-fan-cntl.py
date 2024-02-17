@@ -35,6 +35,7 @@ class TripleFanController:
         self._fan2_tach_pin = fan2_tach_pin
         self._fan3_tach_pin = fan3_tach_pin
         self._pwm_freq = pwm_freq
+        self._last_pwm_set_point = 0
         self._last_tach_time = datetime.datetime.now()
 
         self._tach_counts = {
@@ -55,6 +56,7 @@ class TripleFanController:
         # Invert DC
         inv_dc = 100 - duty_cycle
         self._pwm.ChangeDutyCycle(inv_dc)
+        self._last_pwm_set_point = duty_cycle
 
     '''
     Returns the three fan speeds in RPM.
@@ -85,7 +87,7 @@ class TripleFanController:
     def get_fan_speeds_as_str(self) -> str:
         fan_speeds = self.get_fan_speeds()
         if fan_speeds is not None:
-            return f"Fan 1 = {fan_speeds[0]:04d}\tFan 2 = {fan_speeds[1]:04d}\tFan 3 = {fan_speeds[2]:04d}"
+            return f"Set Point = {self._last_pwm_set_point}%\tFan 1 = {fan_speeds[0]:04d}\tFan 2 = {fan_speeds[1]:04d}\tFan 3 = {fan_speeds[2]:04d}"
         else:
             return "No fan speeds measured"
         pass
@@ -285,7 +287,7 @@ def main():
         for sp in pwm_set_points:
             fan_controller.set_fan_pwm(sp)
             time.sleep(test_sleep_time)
-            print(f"Set Point = {sp}% :: {fan_controller.get_fan_speeds_as_str()}")
+            print(fan_controller.get_fan_speeds_as_str())
 
     # Initialize MQTT Client
     mqtt_client = MqttClient()
@@ -301,8 +303,10 @@ def main():
             # Report fan speed
             fan_speeds = fan_controller.get_fan_speeds()
             mqtt_client.try_publish(fan_1_rpm_topic, fan_speeds[0])
+            print(f"{fan_1_rpm_topic}/{fan_speeds[0]}")
             mqtt_client.try_publish(fan_2_rpm_topic, fan_speeds[1])
-
+            print(f"{fan_2_rpm_topic}/{fan_speeds[1]}")
+            
             # Check if a new set point is availble
             sub_messages = mqtt_client.flush_subscription_topic_queue()
             for msg in sub_messages:
