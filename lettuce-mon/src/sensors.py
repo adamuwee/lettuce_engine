@@ -2,8 +2,13 @@ from busio import I2C
 from adafruit_bus_device import i2c_device
 
 import adafruit_hts221
+
+import adafruit_mcp3421.mcp3421 as ADC
+from adafruit_mcp3421.analog_in import AnalogIn
+
 import datetime
 import json
+import math
 
 class SingleTempHumidityMeasurement:
         
@@ -62,3 +67,25 @@ class hts221(TemperatureHumiditySensor):
         print(f"HTS221 Temperature:\t\t{f_temp:0.1f} F")
         print(f"HTS221 Relative Humidity:\t{humidity:0.1f}%")
         return SingleTempHumidityMeasurement(f_temp, humidity)
+    
+class mcp3421Thermistor(TemperatureHumiditySensor):
+    def __init__(self, i2c : I2C, 
+                 i2c_addr : int = 0x68) -> None:
+        self.adc_device = ADC.MCP3421(i2c)
+        self.adc_device.gain = 1
+        self.adc_device.resolution = 18
+        self.adc_device.continuous_mode = True
+        self.adc_channel = AnalogIn(self.adc_device)
+
+    def read_temp_humidity(self) -> float:
+        raw = self.adc_channel.value
+        # Convert bin to float
+        v_out = raw / 131072 * 2.048
+        # Convert Voltage to Resistance
+        v_in = 5.4
+        shunt_resistor = 32020
+        r_thermistor = (v_out * shunt_resistor) / (v_in - v_out) 
+        # Convert Resistance to Temperature (thermistor)
+        f_temperature = -44.91*math.log(r_thermistor)+493.17
+        print(f"MCP3421 Voltage:\t{v_out:0.3f}V\tThermistor: {int(r_thermistor)}ohms\tTempature: {f_temperature:0.1f}degF")   
+        return SingleTempHumidityMeasurement(f_temperature, 0)

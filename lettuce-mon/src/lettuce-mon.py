@@ -96,11 +96,12 @@ class LettuceMonitor:
         # I2C Bus
         i2c = busio.I2C(SCL, SDA)
 
-        # Create Sensor Objects
+        # Create Sensor Objects for Temp / Humidity
         mqtt_base_topic = "lettuce_box/"
         self._sensors.append(TempHumiditySensor("Seedling Box", sensors.sht31(i2c, 0x44), mqtt_base_topic))
         self._sensors.append(TempHumiditySensor("Main Box", sensors.sht31(i2c, 0x45), mqtt_base_topic))
         self._sensors.append(TempHumiditySensor("Room", sensors.hts221(i2c, 0x59), mqtt_base_topic))
+        self._sensors.append(TempHumiditySensor("Water", sensors.mcp3421Thermistor(i2c, 0x68), mqtt_base_topic))
 
         # Create MQTT Client
         self._mqtt_client = mqtt.Client()
@@ -115,12 +116,13 @@ class LettuceMonitor:
     def read_sensors(self) -> (bool, str):
         all_read_okay = True
         all_ret_msg = ""
+        # Temp / Humidity Sensor
         for sensor in self._sensors:
             (read_okay, ret_msg) = sensor.update_measurement()
             if read_okay == False:
                 all_read_okay = False
-                all_ret_msg = f"Failed to update measurement of {sensor.name}"
-                break
+                all_ret_msg = f"Failed to update measurement of {sensor}"
+                break        
         return (all_read_okay, all_ret_msg)
     
     '''
@@ -135,6 +137,7 @@ class LettuceMonitor:
                                           sensor.get_mqtt_measurement_string(), 
                                           0, 
                                           True)
+                print(f"publish_sensor_data: {sensor.get_mqtt_publish_topic()}/{sensor.get_mqtt_measurement_string()}")
         return (all_read_okay, all_ret_msg)
     
     # The callback for when the client receives a CONNACK response from the server.
