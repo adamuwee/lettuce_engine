@@ -148,6 +148,7 @@ class MqttClient:
         self._flag_connected = False
         self._sub_payload_queue = list()
         self._sub_payload_queue_lock = Lock()
+        self._subscription_list = list()
 
         # Mqtt Client
         self._client = mqtt.Client()
@@ -204,6 +205,9 @@ class MqttClient:
     def subscribe(self, topic : str):
         self._log(f"Subscribing to: {topic}")
         self._client.subscribe(topic)
+        # Add to list
+        if topic not in self._subscription_list:
+            self._subscription_list.append(topic)
 
     '''
     Get a copy of the 
@@ -220,6 +224,9 @@ class MqttClient:
     def _on_client_connect(self, client, userdata, flags, rc):
         self._flag_connected = 1
         self._log("Client connected.")
+        # Subscribe to topics (in case of reconnect)
+        for topic in self._subscription_list:
+            self._client.subscribe(topic)
 
     '''
     Disconnect callback
