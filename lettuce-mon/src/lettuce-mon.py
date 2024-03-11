@@ -35,7 +35,7 @@ class TempHumiditySensor:
     '''
     Update measurement from sensor (get)
     '''
-    def update_measurement(self) -> (bool, str):
+    def update_measurement(self) -> tuple:
         read_okay = True
         ret_msg = ""
         self._last_measurement = None
@@ -113,7 +113,7 @@ class LettuceMonitor:
     '''
     Read all the configured sensors and store results in memory
     '''
-    def read_sensors(self) -> (bool, str):
+    def read_sensors(self) -> tuple:
         all_read_okay = True
         all_ret_msg = ""
         # Temp / Humidity Sensor
@@ -128,7 +128,7 @@ class LettuceMonitor:
     '''
     Publish all the sensor data to the network.
     '''
-    def publish_sensor_data(self) -> (bool, str):
+    def publish_sensor_data(self) -> tuple:
         all_read_okay = True
         all_ret_msg = ""
         for sensor in self._sensors:
