@@ -11,7 +11,7 @@ class TCT40Sensor:
     Default I2C Address: 0x2F
     Dimensions: 1.75" x 0.85"
     '''
-    _WRITE_READ_DELAY_SECS = 0.01
+    _WRITE_READ_DELAY_SECS = 0.10
 
     def __init__(self, bus_number=1, address=0x2F):
         self.bus = smbus2.SMBus(bus_number)
@@ -25,7 +25,7 @@ class TCT40Sensor:
 
             # Read 2 bytes of data
             data = self.bus.read_i2c_block_data(self.address, 0x01, 2)
-            distance = (data[1] << 8) + data[0]
+            distance = ((data[0] & 0x7F) << 8) + data[1]
             return distance
         except Exception as e:
             print(f"Error reading distance: {e}")
@@ -34,10 +34,11 @@ class TCT40Sensor:
     def print_distance(self, include_bar=True):
         distance = self.read_distance()
         if distance == 0:
-            print("Out of range")
+            print("[Ultrasonic] Out of range")
         elif distance is not None:
-            distance_cm = distance / 1000
-            meas_str = f"Distance: {distance_cm:.1f} cm"
+            distance_cm = distance / 10
+            distance_in = distance_cm / 2.54
+            meas_str = f"Ultrasonic] Distance: {distance_in:.2f} in [Raw: 0x{distance:04X}]"
             if include_bar:
                 max_distance = 100
                 max_bars = 80
@@ -48,7 +49,7 @@ class TCT40Sensor:
             print(meas_str)
 
 if __name__ == "__main__":
-    sensor = TCT40Sensor()
+    ultra_sonic_sensor = TCT40Sensor()
     while True:
-        sensor.print_distance()
+        ultra_sonic_sensor.print_distance()
         time.sleep(0.1)
