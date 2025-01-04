@@ -17,7 +17,7 @@ class TCT40Sensor:
         self.bus = smbus2.SMBus(bus_number)
         self.address = address
 
-    def read_distance(self):
+    def read_distance_inches(self):
         try:
             # Write to initiate measurement
             self.bus.write_byte(self.address, 0x01)
@@ -26,23 +26,23 @@ class TCT40Sensor:
             # Read 2 bytes of data
             data = self.bus.read_i2c_block_data(self.address, 0x01, 2)
             distance = ((data[0] & 0x7F) << 8) + data[1]
-            return distance
+            distance_cm = distance / 10
+            distance_in = distance_cm / 2.54
+            return distance_in
         except Exception as e:
             print(f"Error reading distance: {e}")
             return None
     
     def print_distance(self, include_bar=True):
-        distance = self.read_distance()
-        if distance == 0:
+        distance_in = self.read_distance()
+        if distance_in == 0:
             print("[Ultrasonic] Out of range")
-        elif distance is not None:
-            distance_cm = distance / 10
-            distance_in = distance_cm / 2.54
-            meas_str = f"Ultrasonic] Distance: {distance_in:.2f} in [Raw: 0x{distance:04X}]"
+        elif distance_in is not None:
+            meas_str = f"Ultrasonic] Distance: {distance_in:.2f}"
             if include_bar:
                 max_distance = 100
                 max_bars = 80
-                bars = int((distance_cm / max_distance) * max_bars)
+                bars = int((distance_in / max_distance) * max_bars)
                 meas_str += "[:->"
                 for i in range(bars):
                     meas_str += "#"

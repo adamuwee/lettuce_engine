@@ -1,5 +1,9 @@
+import busio
 from busio import I2C
 from adafruit_bus_device import i2c_device
+from board import SCL, SDA
+
+import smbus2
 
 import adafruit_hts221
 
@@ -9,6 +13,7 @@ from adafruit_mcp3421.analog_in import AnalogIn
 import datetime
 import json
 import math
+import time
 
 class SingleTempHumidityMeasurement:
         
@@ -82,10 +87,71 @@ class mcp3421Thermistor(TemperatureHumiditySensor):
         # Convert bin to float
         v_out = raw / 131072 * 2.048
         # Convert Voltage to Resistance
-        v_in = 5.4
+        v_in = 3.3
         shunt_resistor = 32020
         r_thermistor = (v_out * shunt_resistor) / (v_in - v_out) 
         # Convert Resistance to Temperature (thermistor)
         f_temperature = -44.91*math.log(r_thermistor)+493.17
         print(f"MCP3421 Voltage:\t{v_out:0.3f}V\tThermistor: {int(r_thermistor)}ohms\tTempature: {f_temperature:0.1f}degF")   
         return SingleTempHumidityMeasurement(f_temperature, 0)
+
+class TCT40Sensor:
+    '''
+    Operating Voltage 3.3V
+    Detecting Angle: 80 degrees
+    Sensor range: 2cm to 400cm
+    Accuracy: 3mm
+    MCU on board: STM8L051F3
+    Default I2C Address: 0x2F
+    Dimensions: 1.75" x 0.85"
+    '''
+    _WRITE_READ_DELAY_SECS = 0.10
+
+    def __init__(self, 
+                i2c_bus_number : int = 1, 
+                i2c_addr : int = 0x2F):
+        self.i2c_bus_number = i2c_bus_number
+        self.address = i2c_addr
+
+    def read_distance_inches(self):
+        bus = smbus2.SMBus(self.i2c_bus_number)
+        try:
+            # Write to initiate measurement
+            bus.write_byte(self.address, 0x01)
+            time.sleep(self._WRITE_READ_DELAY_SECS)  # Wait for measurement to complete
+
+            # Read 2 bytes of data
+            data = bus.read_i2c_block_data(self.address, 0x01, 2)
+            bus.close()
+            distance = ((data[0] & 0x7F) << 8) + data[1]
+            distance_cm = distance / 10
+            distance_in = distance_cm / 2.54
+            return distance_in
+        except Exception as e:
+            print(f"Error reading distance: {e}")
+            return None
+    
+    def print_distance(self, include_bar=True):
+        distance_in = self.read_distance_inches()
+        if distance_in == 0:
+            print("[Ultrasonic] Out of range")
+        elif distance_in is not None:
+            meas_str = f"Ultrasonic] Distance: {distance_in:.2f}]"
+            if include_bar:
+                max_distance = 100
+                max_bars = 80
+                bars = int((distance_in / max_distance) * max_bars)
+                meas_str += "[:->"
+                for i in range(bars):
+                    meas_str += "#"
+            print(meas_str)
+
+if __name__ == "__main__":
+    ultra_sonic_sensor = TCT40Sensor()
+    temp_humidity_sensor = sht31(I2C(SCL, SDA), i2c_addr=0x45)
+    thermistor = mcp3421Thermistor(I2C(SCL, SDA), i2c_addr=0x68)
+    while True:
+        ultra_sonic_sensor.print_distance()
+        temp_humidity_sensor.read_temp_humidity()
+        thermistor.read_temp_humidity()
+        time.sleep(0.1)
