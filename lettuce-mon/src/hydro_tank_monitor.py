@@ -9,16 +9,26 @@ import json
 import paho.mqtt.client as mqtt
 from board import SCL, SDA
 from busio import I2C
+import lgpio
 from gpiozero import Button
 
 import logger
 import config
 import sensors
 import depth_sensor
+import display
 
 '''
 TODO:
-1. Add Tare Button function
+1. Ensure operation without Network / OpenHav connection
+'''
+
+'''
+I2C Devices
+0x29 => VL53L4CD / Water Depth
+0x45 => SHT31 / Env. Temperature and Humidity
+0x68 => MCP3421 / Thermistor
+0x70 => Numeric Display
 '''
 
 class HydroTankMonitor:
@@ -46,25 +56,30 @@ class HydroTankMonitor:
         self._app_logger.write(self._log_key, "Initializing...", logger.MessageLevel.INFO)  
 
         # Load config
-        self._app_config = config.ConfigManager(config_file_name, self._app_logger)
+        force_overwrite_existing_config = False
+        self._app_config = config.ConfigManager(config_file_name, 
+                                                self._app_logger, 
+                                                force_overwrite_existing_config)
 
         # Create and connect to MQTT Broker - fail if unable to connect
         self._mqtt_client_connect()
+        self._last_report_timestamp = None
         
         # Create I2C Bus and initialize sensors
         # Water Depth Sensor (TCT40)
         i2c_addr_water_depth_sensor = self._app_config.active_config["sensors"]["water_depth"]["i2c_addr"]
-        self.ultra_sonic_sensor = depth_sensor.TCT40Sensor(bus_number=1, address=i2c_addr_water_depth_sensor)
+        self.ultra_sonic_sensor = depth_sensor.VL53L4CD(i2c_addr_water_depth_sensor)
         # Environment Temperature and Humidity Sensor (SHT31)
         i2c_addr_env_sensor = self._app_config.active_config["sensors"]["env_temp_humidity"]["i2c_addr"]
-        self._sensor_environment_temp_humidity = sensors.sht31(I2C(SCL, SDA), i2c_addr_env_sensor)
+        self._sensor_environment_temp_humidity = sensors.sht31(I2C(SCL, SDA), i2c_addr_env_sensor, False)
         # Water Temperature (MCS3421 Thermistor)
         i2c_addr_water_temperature = self._app_config.active_config["sensors"]["water_temperature"]["i2c_addr"]
-        self._sensor_water_temperature = sensors.mcp3421Thermistor(I2C(SCL, SDA), i2c_addr_water_temperature)
+        self._sensor_water_temperature = sensors.mcp3421Thermistor(I2C(SCL, SDA), i2c_addr_water_temperature, False)
 
         # Intialize Digital Input for zero button
         self._init_zero_button()
         self._zero_offset = 0
+        self._display = display.FourDigitDisplay()
     
         # Initialization complete.
         self._app_logger.write(self._log_key, "Initialized.", logger.MessageLevel.INFO) 
@@ -96,6 +111,7 @@ class HydroTankMonitor:
         while True:
             # Read Sensors
             sensor_data = dict()
+
             sensor_data["timestamp_iso"] = datetime.datetime.now().isoformat()
             
             sensor_data["env_temperature_f"] = self._sensor_environment_temp_humidity.read_temp_humidity().temperature
@@ -107,20 +123,24 @@ class HydroTankMonitor:
             sensor_data["water_depth"] = water_depth_inverted + self._zero_offset
             sensor_data["water_depth_offset"] = self._zero_offset
             
-            # Update Display
-            # TODO: Update Display
+            # Update Display - adjust to display 10ths of inches
+            self._display.display_number(int(sensor_data["water_depth"]*10))
 
             # Publish Sensor Data to OpenHab
-            topic_parts = [self._app_config.active_config['mqtt']['base_topic']]
-            if self._app_config.active_config['mqtt']['use_host_name_in_mqtt_topic'] is True:
-                topic_parts.append(platform.node())
-            else:
-                topic_parts.append(self._app_config.active_config['mqtt']['not_host_hame']) 
-            topic_parts.append(self._app_config.active_config['mqtt']['sensor_topic'])
-            sensor_mqtt_topic = self._mqtt_topic_join(topic_parts)
-            
-            data_json_str = json.dumps(sensor_data)
-            self._mqtt_publish(sensor_mqtt_topic, data_json_str)
+            if self._last_report_timestamp is None or (datetime.datetime.now() - self._last_report_timestamp).seconds >= self._app_config.active_config["mqtt"]["report_period_seconds"]:
+                self._last_report_timestamp = datetime.datetime.now()
+                
+                # Publish to MQTT
+                topic_parts = [self._app_config.active_config['mqtt']['base_topic']]
+                if self._app_config.active_config['mqtt']['use_host_name_in_mqtt_topic'] is True:
+                    topic_parts.append(platform.node())
+                else:
+                    topic_parts.append(self._app_config.active_config['mqtt']['not_host_hame']) 
+                topic_parts.append(self._app_config.active_config['mqtt']['sensor_topic'])
+                sensor_mqtt_topic = self._mqtt_topic_join(topic_parts)
+                
+                data_json_str = json.dumps(sensor_data)
+                self._mqtt_publish(sensor_mqtt_topic, data_json_str)
 
             # Sleep
             time.sleep(sensor_sample_period_seconds)
@@ -151,8 +171,7 @@ class HydroTankMonitor:
         if mqtt_connected is False:
             mqtt_client_err_msg = "Client failed to connect to MQTT Broker."
             self._app_logger.write(self._log_key, mqtt_client_err_msg, logger.MessageLevel.ERROR)
-            raise Exception(mqtt_client_err_msg)
-    
+                
     '''
     Publish a message to the MQTT Broker
     '''
@@ -162,13 +181,14 @@ class HydroTankMonitor:
             if self._mqtt_client is None or self._mqtt_client.is_connected() is False:
                 self._mqtt_client_connect()
         # Publish message
-        qos = 2
-        retain = True
-        mqtt_msg_info = self._mqtt_client.publish(mqtt_topic, 
-                                                 json_str_msg, 
-                                                 qos, 
-                                                 retain)
-        self._app_logger.write("mqtt", f"Message published w/ code: {mqtt_msg_info.rc}", logger.MessageLevel.INFO)
+        if self._mqtt_client is not None and self._mqtt_client.is_connected():
+            qos = 2
+            retain = True
+            mqtt_msg_info = self._mqtt_client.publish(mqtt_topic, 
+                                                    json_str_msg, 
+                                                    qos, 
+                                                    retain)
+            self._app_logger.write("mqtt", f"Message published w/ code: {mqtt_msg_info.rc}", logger.MessageLevel.INFO)
         
     '''
     The callback for when the client receives a CONNACK response from the server.
@@ -190,7 +210,6 @@ class HydroTankMonitor:
         button_gpio_pin = 17
         self._zero_button = Button(button_gpio_pin)
         self._zero_button.when_pressed = self._zero_button_pressed_callback
-        # Set up GPIO using BCM numbering
     
     '''
     Called when button press is detected. Capture the current distance as an offset

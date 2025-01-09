@@ -38,8 +38,9 @@ class TemperatureHumiditySensor:
         pass
 
 class sht31(TemperatureHumiditySensor):
-    def __init__(self, i2c : I2C, i2c_addr : int = 0x44) -> None:
+    def __init__(self, i2c : I2C, i2c_addr : int = 0x44, print_reads=True) -> None:
         self.i2c_device = i2c_device.I2CDevice(i2c, i2c_addr)
+        self._print_reads = print_reads
 
     def read_temp_humidity(self) -> SingleTempHumidityMeasurement:
         wr_data = bytearray(2)
@@ -57,8 +58,9 @@ class sht31(TemperatureHumiditySensor):
         fTemp = -49 + (315 * temp / 65535.0)
         humidity = 100 * (data[3] * 256 + data[4]) / 65535.0
         # Output data to screen and return
-        print(f"SHT31 0x{self.i2c_device.device_address:02x} Temperature:\t\t{fTemp:0.1f} F")
-        print(f"SHT31 0x{self.i2c_device.device_address:02x} Relative Humidity:\t{humidity:0.1f}%")
+        if self._print_reads:
+            print(f"SHT31 0x{self.i2c_device.device_address:02x} Temperature:\t\t{fTemp:0.1f} F")
+            print(f"SHT31 0x{self.i2c_device.device_address:02x} Relative Humidity:\t{humidity:0.1f}%")
         return SingleTempHumidityMeasurement(fTemp, humidity)
 
 class hts221(TemperatureHumiditySensor):
@@ -75,12 +77,14 @@ class hts221(TemperatureHumiditySensor):
     
 class mcp3421Thermistor(TemperatureHumiditySensor):
     def __init__(self, i2c : I2C, 
-                 i2c_addr : int = 0x68) -> None:
+                 i2c_addr : int = 0x68,
+                 print_reads=True) -> None:
         self.adc_device = ADC.MCP3421(i2c)
         self.adc_device.gain = 1
         self.adc_device.resolution = 18
         self.adc_device.continuous_mode = True
         self.adc_channel = AnalogIn(self.adc_device)
+        self._print_reads = print_reads
 
     def read_temp_humidity(self) -> float:
         raw = self.adc_channel.value
@@ -92,7 +96,8 @@ class mcp3421Thermistor(TemperatureHumiditySensor):
         r_thermistor = (v_out * shunt_resistor) / (v_in - v_out) 
         # Convert Resistance to Temperature (thermistor)
         f_temperature = -44.91*math.log(r_thermistor)+493.17
-        print(f"MCP3421 Voltage:\t{v_out:0.3f}V\tThermistor: {int(r_thermistor)}ohms\tTempature: {f_temperature:0.1f}degF")   
+        if self._print_reads:
+            print(f"MCP3421 Voltage:\t{v_out:0.3f}V\tThermistor: {int(r_thermistor)}ohms\tTempature: {f_temperature:0.1f}degF")   
         return SingleTempHumidityMeasurement(f_temperature, 0)
 
 class TCT40Sensor:

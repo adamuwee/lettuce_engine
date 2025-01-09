@@ -23,12 +23,15 @@ class ConfigManager:
     '''
     Construction - create empty active config
     '''
-    def __init__(self, init_cfg_file_name : str, app_logger : logger.Logger) -> None:
+    def __init__(self, init_cfg_file_name : str, app_logger : logger.Logger, overwrite_existing=False) -> None:
         self._app_logger = app_logger
         # Create tree
         self.active_config = tree()
         # Attempt to load from disk
-        (load_ok, load_msg) = self.load_from_disk_by_path(init_cfg_file_name)
+        load_ok = False
+        load_msg = ""
+        if overwrite_existing is False:
+            (load_ok, load_msg) = self.load_from_disk_by_path(init_cfg_file_name)
         if load_ok is False:
             self._app_logger.write(self._log_key, load_msg, logger.MessageLevel.ERROR)
             self._app_logger.write(self._log_key, "Loading default config...", logger.MessageLevel.INFO)
@@ -122,7 +125,8 @@ class ConfigManager:
         self.active_config = tree()
         self.active_config['Name'] = 'default'
         # Tank Monitor Default Config
-        self.active_config['sensor_sample_period_seconds'] = 10
+        self.active_config['sensor_sample_period_seconds'] = 1
+        self.active_config['mqtt']['report_period_seconds'] = 60
         self.active_config['mqtt']['server_url'] = "debian-openhab"
         self.active_config['mqtt']['server_port'] = 1883
         self.active_config['mqtt']['base_topic'] = "hydro_tank_monitor"
@@ -131,7 +135,7 @@ class ConfigManager:
         self.active_config['mqtt']['sensor_topic'] = "last_sensor_data"
         self.active_config['mqtt']['status_topic'] = "status"
         self.active_config['i2c']['bus'] = 1
-        self.active_config["sensors"]["water_depth"]["i2c_addr"] = 0x2F
+        self.active_config["sensors"]["water_depth"]["i2c_addr"] = 0x29
         self.active_config["sensors"]["env_temp_humidity"]["i2c_addr"] = 0x45
         self.active_config["sensors"]["water_temperature"]["i2c_addr"] = 0x68
         self.active_config["zero_button_pin"] = 17
