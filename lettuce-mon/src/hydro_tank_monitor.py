@@ -126,6 +126,8 @@ class HydroTankMonitor:
             # Update Display - adjust to display 10ths of inches
             self._display.display_number(int(sensor_data["water_depth"]*10))
 
+            self._print_data_to_console(sensor_data)
+
             # Publish Sensor Data to OpenHab
             if self._last_report_timestamp is None or (datetime.datetime.now() - self._last_report_timestamp).seconds >= self._app_config.active_config["mqtt"]["report_period_seconds"]:
                 self._last_report_timestamp = datetime.datetime.now()
@@ -144,7 +146,20 @@ class HydroTankMonitor:
 
             # Sleep
             time.sleep(sensor_sample_period_seconds)
-    
+
+    '''
+    Prints all sensor data to the console to support debugging
+    '''
+    def _print_data_to_console(self, sensor_data):
+            console_str = "--- Sensor Data ---\n"
+            console_str += f"Timestamp:                {sensor_data['timestamp_iso']}\n"
+            console_str += f"Env. Temp (F):            {sensor_data['env_temperature_f']:.1f}F\n"
+            console_str += f"Env. Humidity (%):        {sensor_data['env_humidity']:.1f}%\n"
+            console_str += f"Water Temp (F):           {sensor_data['water_temperature_f']:.1f}F\n"
+            console_str += f"Water Depth (in.):        {sensor_data['water_depth']:.2f}\"\n"
+            console_str += f"Water Depth Offset (in.): {sensor_data['water_depth_offset']:.2f}\"\n"
+            self._app_logger.write(self._log_key, console_str, logger.MessageLevel.INFO) 
+
     '''
     Join MQTT topic parts into a single string with single slashes
     '''
