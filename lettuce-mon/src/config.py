@@ -23,8 +23,14 @@ class ConfigManager:
     '''
     Construction - create empty active config
     '''
-    def __init__(self, init_cfg_file_name : str, app_logger : logger.Logger, overwrite_existing=False) -> None:
+    def __init__(self, 
+                 init_cfg_file_name : str, 
+                 app_logger : logger.Logger, 
+                 overwrite_existing=False,
+                 config_type = "tank") -> None:
         self._app_logger = app_logger
+        self._config_type = config_type
+
         # Create tree
         self.active_config = tree()
         # Attempt to load from disk
@@ -35,7 +41,11 @@ class ConfigManager:
         if load_ok is False:
             self._app_logger.write(self._log_key, load_msg, logger.MessageLevel.ERROR)
             self._app_logger.write(self._log_key, "Loading default config...", logger.MessageLevel.INFO)
-            self.set_as_default_config_tank_monitor()
+            # Select config type
+            if self._config_type == "tank":
+                self.set_as_default_config_tank_monitor()
+            elif self._config_type == "system":
+                self.set_as_default_config_system_monitor()
             self._app_logger.write(self._log_key, "Default config loaded.", logger.MessageLevel.INFO)
             default_file_path = os.path.join(os.getcwd(), self._CONFIG_FOLDER, "default.json")
             self.save_to_disk_filepath(default_file_path, True)
@@ -56,7 +66,10 @@ class ConfigManager:
                 self._app_logger.write(self._log_key, f"Config {full_config_file_path} loaded.", logger.MessageLevel.INFO)
         except FileNotFoundError:
             # Create default config
-            self.set_as_default_config_tank_monitor()
+            if self._config_type == "tank":
+                self.set_as_default_config_tank_monitor()
+            elif self._config_type == "system":
+                self.set_as_default_config_system_monitor()
             self.save_to_disk_filepath(full_config_file_path, True)
             return (True, f"Created configuration file '{full_config_file_path}' with default settings.")
         except json.JSONDecodeError:
@@ -118,7 +131,6 @@ class ConfigManager:
 
     '''
     Build a default configuration - useful for first time run in a new environment
-    Uncomment ONE of the following functions
     '''
     def set_as_default_config_tank_monitor(self) -> None:
         # Initialize the active config
@@ -139,6 +151,26 @@ class ConfigManager:
         self.active_config["sensors"]["env_temp_humidity"]["i2c_addr"] = 0x45
         self.active_config["sensors"]["water_temperature"]["i2c_addr"] = 0x68
         self.active_config["zero_button_pin"] = 17
+
+    '''
+    Build a default configuration - useful for first time run in a new environment
+    '''
+    def set_as_default_config_system_monitor(self) -> None:
+        # Initialize the active config
+        self.active_config = tree()
+        self.active_config['Name'] = 'default'
+        # Tank Monitor Default Config
+        self.active_config['sensor_sample_period_seconds'] = 1
+        self.active_config['mqtt']['report_period_seconds'] = 60
+        self.active_config['mqtt']['server_url'] = "debian-openhab"
+        self.active_config['mqtt']['server_port'] = 1883
+        self.active_config['mqtt']['base_topic'] = "hydro_system_monitor"
+        self.active_config['mqtt']['use_host_name_in_mqtt_topic'] = False
+        self.active_config['mqtt']['not_host_hame'] = "hydro_system_monitor"
+        self.active_config['mqtt']['sensor_topic'] = "last_sensor_data"
+        self.active_config['mqtt']['status_topic'] = "status"
+        self.active_config['i2c']['bus'] = 1
+        self.active_config["sensors"]["env_temp_humidity"]["i2c_addr"] = 0x45
 
     '''
     Recursively convert all defaultdicts to dicts; useful for JSON serialization
