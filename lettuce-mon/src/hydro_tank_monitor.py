@@ -172,17 +172,31 @@ class HydroTankMonitor:
     '''
     def _mqtt_client_connect(self):
         client_id = f'python-mqtt-{random.randint(0, 1000)}'
-        self._mqtt_client = mqtt.Client(mqtt.CallbackAPIVersion.VERSION1, client_id)
-        self._mqtt_client.on_connect = self._mqtt_on_connect
-        self._mqtt_client.on_publish = self._mqtt_on_publish
-        
         server_url = self._app_config.active_config["mqtt"]["server_url"]
         server_port = self._app_config.active_config["mqtt"]["server_port"]
-        mqtt_conn_code = self._mqtt_client.connect(server_url, server_port, 60)
-        self._mqtt_client.loop_start()
-        self._app_logger.write(self._log_key, f"MQTT Client Connect Code: {mqtt_conn_code}", logger.MessageLevel.INFO)
-        time.sleep(0.5)
-        mqtt_connected = self._mqtt_client.is_connected()
+        mqtt_connected = False
+        try:
+            self._mqtt_client = mqtt.Client(mqtt.CallbackAPIVersion.VERSION1, client_id)
+            self._mqtt_client.on_connect = self._mqtt_on_connect
+            self._mqtt_client.on_publish = self._mqtt_on_publish
+        except:
+            self._app_logger.write(self._log_key, "Unable to create MQTT Client object.", logger.MessageLevel.ERROR)
+            return
+                
+        if self._mqtt_client == None:
+            self._app_logger.write(self._log_key, "MQTT Client object is None without exception thrown.", logger.MessageLevel.ERROR)
+            return
+            
+        try:
+            mqtt_conn_code = self._mqtt_client.connect(server_url, server_port, 60)
+            self._mqtt_client.loop_start()
+            self._app_logger.write(self._log_key, f"MQTT Client Connect Code: {mqtt_conn_code}", logger.MessageLevel.INFO)
+            time.sleep(0.5)
+            mqtt_connected = self._mqtt_client.is_connected()
+        except:
+            self._app_logger.write(self._log_key, f"MQTT Client unable to connect object. Code = {mqtt_conn_code}", logger.MessageLevel.ERROR)
+            return
+            
         if mqtt_connected is False:
             mqtt_client_err_msg = "Client failed to connect to MQTT Broker."
             self._app_logger.write(self._log_key, mqtt_client_err_msg, logger.MessageLevel.ERROR)
